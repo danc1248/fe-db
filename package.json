@@ -1,0 +1,17 @@
+{
+  "name": "fe-db",
+  "version": "0.0.1",
+  "description": "in memory databases",
+  "main": "fe-db.js",
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/danc1248/fe-db.git"
+  },
+  "author": "danc1248",
+  "license": "BSD-2-Clause",
+  "dependencies": {
+    "grunt-contrib-coffee": "~0.13.0",
+    "grunt-contrib-watch": "~0.6.1",
+    "grunt-contrib-uglify": "~0.9.2"
+  }
+}

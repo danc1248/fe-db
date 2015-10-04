@@ -1,0 +1,2 @@
+# ignore node modules of course, you can just install them
+node_modules/**
