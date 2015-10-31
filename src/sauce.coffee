@@ -6,6 +6,15 @@ window.FEDB = do ->
     throw new Error "jQuery is required for promises"
 
   ###
+  Constants for representing datatypes for validation, etc.
+  ###
+  DataTypes =
+    Number: 1
+    String: 2
+    Enum: 3
+    Table: 4
+
+  ###
   Database: holds our tables, usage:
   d = new Database()
   d.setTable("trees", schema, sample_data)
@@ -16,31 +25,123 @@ window.FEDB = do ->
     constructor: ->
       @tables = {}
 
-    setTable: (name, schema, data = [])->
+    setTable: (name, schemaObj, data = [])->
+      schema = new Schema(schemaObj, @)
       @tables[name] = new Table(schema, data)
-      return
+      return @
 
     # @return a table instance for querying or whatever
     getTable: (name)->
-      return @tables[name]
+      if @tables[name] is undefined
+        throw new Error "Unknown table: #{name}"
+      else
+        return @tables[name]
 
   ###
-  Tables: hold our data and schema (unused)
+  Holds table schema and does some validation etc.
+  e.g.
+  {
+    id: {
+      type: Number
+      unique: true <-- add a unique index
+    }
+    age: Number
+    name: String
+    text: {
+      type: String
+    }
+    gender: {
+      type: Enum
+      values: ["m", "f"]
+    }
+    hobbies: {
+      type: Table
+      target: "hobbies"
+    }
+  }
+  ###
+  class Schema
+    # this schema could be on a complete form that we want to save:
+    # { id: { type: Number, ...other properties }, ... other fields}
+    # or it could be simple: { id: Number } in which case we have to extend it
+    # database, schemas can reference other tables, so we need to keep track of original calling database so we can grab those tables
+    constructor: (@schema, @database)->
+      @indexes = []
+      # look fo simple enteries and extend them:
+      for field, mixed of @schema
+        if $.type(mixed) isnt "object"
+          @schema[field] = { type: mixed }
+        else
+          # currently only support unique indexes, beware!
+          if mixed.unique is true
+            @indexes.push field
+
+      @fields = Object.keys(@schema)
+
+    _getIndexes: ->
+      return @indexes
+
+    _validateData: (data)->
+      for row in data
+        @_validateRow(row)
+      return true
+
+    _validateRow: (row, index)->
+      if @fields.length isnt Object.keys(row).length
+        throw new Error "unmatched field count for row: #{index}"
+
+      for field in @fields
+        if row[field] is undefined
+          throw new Error "Row not found: #{field} at #{index}"
+        @_validateField(row[field], @schema[field], field)
+      return true
+
+    _validateField: (unknown, schema, field)->
+      if schema.type is DataTypes.Number and $.type(unknown) is "number"
+        return true
+
+      if schema.type is DataTypes.String and $.type(unknown) is "string"
+        return true
+
+      if schema.type is DataTypes.Enum and schema.values.indexOf(unknown) isnt -1
+        return true
+
+      if schema.type is DataTypes.Table
+        table = @database.getTable(schema.target)
+        nested = table._getSchema()
+        if nested._validateData(unknown)
+          return true
+
+      throw new Error "invalid type in data: #{field}: #{unknown}"
+
+
+  ###
+  Tables: hold our data and schema
   run queries on the table, or do a direct lookup using getByIndex
   ###
   class Table
     constructor: (@schema, @data)->
+      @schema._validateData(@data)
       @indexes = {}
+      for index in @schema._getIndexes()
+        @indexes[index] = @_addIndex(index)
+
+
+    _getSchema: ->
+      return @schema
 
     # Creates a unique index on a field for fast lookups
     # @indexes[field] = { value : data array index, ... }
     # indexes must be added after the data is initialized
     # indexes must be unique, which we don't verify
-    addIndex: (field)->
+    _addIndex: (field)->
       index = {}
       for row, i in @data
-        index[row[field]] = i
-      return
+        if index[row[field]] is undefined
+          index[row[field]] = i
+        else
+          throw new Error "non unique index: #{field}"
+      return index
 
     # is this field indexed?
     # @return boolean
@@ -60,9 +161,20 @@ window.FEDB = do ->
     # usage:
     # table.query("field", "=", 5).execute()
     # the execute function returns a promise
+    # MIXED PARAMS:
+    #   to query for all pass no params
+    #   to use a default operation of "=" pass field and value
+    #   pass 3 params for field, operation, value
     # @return Query Object for chaining options, ending in execute
-    query: (field, operation, value)->
-      c = new Comparison(field, operation, value)
+    query: ->
+      switch arguments.length
+        when 0, 1
+          c = new Comparison(null, "*", null)
+        when 2
+          c = new Comparison(arguments[0], "=", arguments[1])
+        else
+          c = new Comparison(arguments[0], arguments[1], arguments[2])
+
       q = new Query(@, c)
       return q
 
@@ -72,24 +184,41 @@ window.FEDB = do ->
   ###
   class Query
     constructor: (@table, @comparison)->
-      @andComparison = null
-      @orComparison = null
-      @orderByFn = null
-
-    # add another comparison that both this and the base must be met
-    # doens't support more then 2 total comparisons because I'm lazy
-    # return Query for chaining
-    and: (field, operation, value)->
-      @andComparison = new Comparison(field, operation, value)
-      return @
-
-    # add a comparison that this OR the base must be met
-    # same notes as AND
-    or: (field, operation, value)->
-      @orComparison = new Comparison(field, operation, value)
-      return @
+      @queryOrdering = null
 
     orderBy: (field, order = "ASC")->
+      @queryOrdering = new QueryOrdering(field, order)
+      return @
+
+    # execute the query!!
+    # @param the search value to match the comparisons field against
+    # this is async so as not to block, returns a promise
+    execute: (value)->
+      deferred = $.Deferred()
+
+      setTimeout =>
+        # for an indexed field, we just grab the values by direct lookup, very fast:
+        if @comparison._isSingleOperation() and @table._hasIndex(@comparison._getField())
+          row = @table.getByIndex(@field, value)
+          output = [row]
+
+        # otherwise we have to just lookup by hand, very slow
+        else
+          output = @table._getData().filter (row)=>
+            return @comparison._compare(row, value)
+
+        if @queryOrdering
+          output = @queryOrdering._sortResults(output)
+
+        deferred.resolve output
+
+      return deferred.promise()
+
+  ###
+  For ordering queries, to keep the query object neater
+  ###
+  class QueryOrdering
+    constructor: (field, order)->
       switch order
         when "ASC", "asc"
           @orderByFn = (a, b)->
@@ -114,58 +243,9 @@ window.FEDB = do ->
         else
           throw new Error "unknown ordering: #{order}"
 
-      return @
+    _sortResults: (results)->
+      return results.sort @orderByFn
 
-    # execute the query!!
-    # this is async so as not to block, returns a promise
-    execute: ->
-      deferred = $.Deferred()
-
-      setTimeout =>
-        output = []
-
-        if @andComparison
-          output = @_executeAnd()
-
-        else if @orComparison
-          output = @_executeOr()
-
-        else if @comparison.getOperation() is "=" and @table._hasIndex(@comparison.getField())
-          output = @_executeIndexed()
-
-        else 
-          output = @_executeBasic()
-
-        if @orderByFn
-          output = output.sort(@orderByFn)
-
-        deferred.resolve output
-
-      return deferred.promise()
-
-    _executeBasic: ->
-      output = []
-      for row in @table._getData()
-        if @comparison.compare(row)
-          output.push row
-      return output
-
-    _executeAnd: ->
-      output = []
-      for row in @table._getData()
-        if @comparison.compare(row) and @andComparison.compare(row)
-          output.push row
-      return output
-
-    _executeOr: ->
-      output = []
-      for row in @table._getData()
-        if @comparison.compare(row) or @orComparison.compare(row)
-          output.push row
-      return output
-
-    _executeIndexed: ->
-      return @table.getByIndex(@field, @value)
 
   ###
   Comparison: used by the query to see if a values meet the criteria
@@ -176,8 +256,8 @@ window.FEDB = do ->
       @operationFn = null
       @setOperation(@operation)
 
-    getField: -> return @field
-    getOperation: -> return @operation
+    _getField: -> return @field
+    _isSingleOperation: -> return @operation is "="
 
     # separate function in case you want to change the default operation after initialization
     # inits the operation function, which is a comparison function between two values
@@ -195,11 +275,13 @@ window.FEDB = do ->
           @operationFn = (a, b)-> return a <= b
         when ">="
           @operationFn = (a, b)-> return a >= b
+        when "*"
+          @operationFn = -> return true
         else
           throw new Error "operation not supported: #{@operation}"
       return
 
-    compare: (row)->
+    _compare: (row)->
       return @operationFn(row[@field], @value)
 
   return {
@@ -207,4 +289,5 @@ window.FEDB = do ->
     Table: Table
     Query: Query
     Comparison: Comparison
+    Data: DataTypes
   }
