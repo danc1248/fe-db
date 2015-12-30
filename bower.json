@@ -7,7 +7,7 @@
     "danc <cantordl@gmail.com>"
   ],
   "description": "in memory database with simple query language",
-  "license": "MIT",
+  "license": "all rights reserved",
   "ignore": [
     "**/.*",
     "node_modules",

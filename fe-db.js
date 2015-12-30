@@ -11,8 +11,8 @@
     DataTypes = {
       Number: 1,
       String: 2,
-      Enum: 3,
-      Table: 4
+      Table: 4,
+      Image: 5
     };
 
     /*
@@ -62,10 +62,6 @@
       text: {
         type: String
       }
-      gender: {
-        type: Enum
-        values: ["m", "f"]
-      }
       hobbies: {
         type: Table
         target: "hobbies"
@@ -73,10 +69,10 @@
     }
      */
     Schema = (function() {
-      function Schema(schema1, database) {
+      function Schema(schema1, database1) {
         var field, mixed, ref;
         this.schema = schema1;
-        this.database = database;
+        this.database = database1;
         this.indexes = [];
         ref = this.schema;
         for (field in ref) {
@@ -94,6 +90,26 @@
         this.fields = Object.keys(this.schema);
       }
 
+      Schema.prototype._getType = function(field) {
+        var obj;
+        obj = this.schema[field];
+        if (obj === void 0) {
+          throw new Error("Unknown type: " + field);
+        } else {
+          return obj.type;
+        }
+      };
+
+      Schema.prototype._getTableName = function(field) {
+        var obj;
+        obj = this.schema[field];
+        if (obj === void 0 || obj.tableName === void 0) {
+          throw new Error("Unknown table name: " + field);
+        } else {
+          return obj.tableName;
+        }
+      };
+
       Schema.prototype._getIndexes = function() {
         return this.indexes;
       };
@@ -102,12 +118,12 @@
         var j, len, row;
         for (j = 0, len = data.length; j < len; j++) {
           row = data[j];
-          this._validateRow(row);
+          this.__validateRow(row);
         }
         return true;
       };
 
-      Schema.prototype._validateRow = function(row, index) {
+      Schema.prototype.__validateRow = function(row, index) {
         var field, j, len, ref;
         if (this.fields.length !== Object.keys(row).length) {
           throw new Error("unmatched field count for row: " + index);
@@ -118,28 +134,26 @@
           if (row[field] === void 0) {
             throw new Error("Row not found: " + field + " at " + index);
           }
-          this._validateField(row[field], this.schema[field], field);
+          this.__validateField(row[field], this.schema[field], field);
         }
         return true;
       };
 
-      Schema.prototype._validateField = function(unknown, schema, field) {
-        var nested, table;
+      Schema.prototype.__validateField = function(unknown, schema, field) {
         if (schema.type === DataTypes.Number && $.type(unknown) === "number") {
           return true;
         }
         if (schema.type === DataTypes.String && $.type(unknown) === "string") {
           return true;
         }
-        if (schema.type === DataTypes.Enum && schema.values.indexOf(unknown) !== -1) {
+        if (schema.type === DataTypes.Table && $.type(unknown) === "array") {
+          if (schema.tableName === void 0) {
+            schema.tableName = field;
+          }
           return true;
         }
-        if (schema.type === DataTypes.Table) {
-          table = this.database.getTable(schema.target);
-          nested = table._getSchema();
-          if (nested._validateData(unknown)) {
-            return true;
-          }
+        if (schema.type === DataTypes.Image && $.type(unknown) === "object") {
+          return true;
         }
         throw new Error("invalid type in data: " + field + ": " + unknown);
       };
@@ -162,7 +176,7 @@
         ref = this.schema._getIndexes();
         for (j = 0, len = ref.length; j < len; j++) {
           index = ref[j];
-          this.indexes[index] = this._addIndex(index);
+          this.indexes[index] = this.__addIndex(index);
         }
       }
 
@@ -170,7 +184,7 @@
         return this.schema;
       };
 
-      Table.prototype._addIndex = function(field) {
+      Table.prototype.__addIndex = function(field) {
         var i, index, j, len, ref, row;
         index = {};
         ref = this.data;
@@ -191,8 +205,12 @@
 
       Table.prototype.getByIndex = function(field, value) {
         var i;
-        i = this.indexes[field][value];
-        return this.data[i];
+        if (this.indexes[field] !== void 0 && this.indexes[field][value] !== void 0) {
+          i = this.indexes[field][value];
+          return this.data[i];
+        } else {
+          throw new Error("getByIndex called on non-indexed field: " + field + ", " + value);
+        }
       };
 
       Table.prototype._getData = function() {
@@ -200,19 +218,8 @@
       };
 
       Table.prototype.query = function() {
-        var c, q;
-        switch (arguments.length) {
-          case 0:
-          case 1:
-            c = new Comparison(null, "*", null);
-            break;
-          case 2:
-            c = new Comparison(arguments[0], "=", arguments[1]);
-            break;
-          default:
-            c = new Comparison(arguments[0], arguments[1], arguments[2]);
-        }
-        q = new Query(this, c);
+        var q;
+        q = new Query(this);
         return q;
       };
 
@@ -225,17 +232,72 @@
     its sort of clunky right now, we'll have to change it based off of usage because I'm not really sure what we'll need it to do
      */
     Query = (function() {
-      function Query(table1, comparison) {
+      function Query(table1) {
         this.table = table1;
-        this.comparison = comparison;
+        this.comparison = null;
         this.queryOrdering = null;
+        this.join = null;
       }
 
+      Query.prototype.where = function(field, operator) {
+        var c;
+        c = new Comparison(field, operator);
+        return this.setComparison(c);
+      };
+
       Query.prototype.orderBy = function(field, order) {
+        var qo;
         if (order == null) {
           order = "ASC";
         }
-        this.queryOrdering = new QueryOrdering(field, order);
+        qo = new QueryOrdering(field, order);
+        return this.setQueryOrdering(qo);
+      };
+
+      Query.prototype.leftJoin = function(field, database, tableName) {
+        var q, table;
+        if (tableName == null) {
+          tableName = null;
+        }
+        if (this.table._getSchema()._getType(field) === DataTypes.Table) {
+          if (tableName === null) {
+            tableName = this.table._getSchema()._getTableName(field);
+          }
+          table = database.getTable(tableName);
+          q = table.query().where("id", "=");
+          return this.setJoin(field, q);
+        } else {
+          throw new Error("Join only supported for DataType.Table: " + field);
+        }
+      };
+
+      Query.prototype.setComparison = function(comparison) {
+        if (this.comparison === null) {
+          this.comparison = comparison;
+        } else {
+          throw new Error("Comparison already set");
+        }
+        return this;
+      };
+
+      Query.prototype.setQueryOrdering = function(queryOrdering) {
+        if (this.queryOrdering === null) {
+          this.queryOrdering = queryOrdering;
+        } else {
+          throw new Error("QueryOrdering already set");
+        }
+        return this;
+      };
+
+      Query.prototype.setJoin = function(field, query) {
+        if (this.join === null) {
+          this.join = {
+            field: field,
+            query: query
+          };
+        } else {
+          throw new Error("Join already set, your dev is lazy and you cant do multiple joins");
+        }
         return this;
       };
 
@@ -244,22 +306,48 @@
         deferred = $.Deferred();
         setTimeout((function(_this) {
           return function() {
-            var output, row;
-            if (_this.comparison._isSingleOperation() && _this.table._hasIndex(_this.comparison._getField())) {
-              row = _this.table.getByIndex(_this.field, value);
-              output = [row];
-            } else {
-              output = _this.table._getData().filter(function(row) {
-                return _this.comparison._compare(row, value);
-              });
-            }
-            if (_this.queryOrdering) {
-              output = _this.queryOrdering._sortResults(output);
-            }
-            return deferred.resolve(output);
+            return deferred.resolve(_this.__execute(value));
           };
         })(this));
         return deferred.promise();
+      };
+
+      Query.prototype.__execute = function(value) {
+        var field, joinField, joinQuery, results, row;
+        if (this.comparison !== null) {
+          field = this.comparison._getField();
+          if (this.comparison._isSingleOperation() && this.table._hasIndex(field)) {
+            row = this.table.getByIndex(field, value);
+            results = [row];
+          } else {
+            results = this.table._getData().filter((function(_this) {
+              return function(row) {
+                return _this.comparison._compare(row, value);
+              };
+            })(this));
+          }
+        } else {
+          results = JSON.parse(JSON.stringify(this.table._getData()));
+        }
+        if (this.join !== null) {
+          joinField = this.join.field;
+          joinQuery = this.join.query;
+          results = results.map((function(_this) {
+            return function(row) {
+              var joinIds;
+              joinIds = row[joinField];
+              row[joinField] = joinIds.map(function(id) {
+                results = joinQuery.__execute(id)[0];
+                return results;
+              });
+              return row;
+            };
+          })(this));
+        }
+        if (this.queryOrdering !== null) {
+          results = this.queryOrdering._sortResults(results);
+        }
+        return results;
       };
 
       return Query;
@@ -316,26 +404,11 @@
     })();
 
     /*
-    Comparison: used by the query to see if a values meet the criteria
+    Comparison: used by the query to see if a row should be included in the search results
      */
     Comparison = (function() {
-      function Comparison(field1, operation, value1) {
+      function Comparison(field1, operation) {
         this.field = field1;
-        this.operation = operation;
-        this.value = value1;
-        this.operationFn = null;
-        this.setOperation(this.operation);
-      }
-
-      Comparison.prototype._getField = function() {
-        return this.field;
-      };
-
-      Comparison.prototype._isSingleOperation = function() {
-        return this.operation === "=";
-      };
-
-      Comparison.prototype.setOperation = function(operation) {
         this.operation = operation;
         switch (this.operation) {
           case "=":
@@ -377,10 +450,19 @@
           default:
             throw new Error("operation not supported: " + this.operation);
         }
+        return;
+      }
+
+      Comparison.prototype._getField = function() {
+        return this.field;
       };
 
-      Comparison.prototype._compare = function(row) {
-        return this.operationFn(row[this.field], this.value);
+      Comparison.prototype._isSingleOperation = function() {
+        return this.operation === "=";
+      };
+
+      Comparison.prototype._compare = function(row, value) {
+        return this.operationFn(row[this.field], value);
       };
 
       return Comparison;
