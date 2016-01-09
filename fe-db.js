@@ -70,7 +70,7 @@
      */
     Schema = (function() {
       function Schema(schema1, database1) {
-        var field, mixed, ref;
+        var field, mixed, properties, ref, ref1;
         this.schema = schema1;
         this.database = database1;
         this.indexes = [];
@@ -81,10 +81,16 @@
             this.schema[field] = {
               type: mixed
             };
-          } else {
-            if (mixed.unique === true) {
-              this.indexes.push(field);
-            }
+          }
+        }
+        ref1 = this.schema;
+        for (field in ref1) {
+          properties = ref1[field];
+          if (properties.unique === true) {
+            this.indexes.push(field);
+          }
+          if (properties.required !== true && properties.required !== false) {
+            properties.required = true;
           }
         }
         this.fields = Object.keys(this.schema);
@@ -125,21 +131,22 @@
 
       Schema.prototype.__validateRow = function(row, index) {
         var field, j, len, ref;
-        if (this.fields.length !== Object.keys(row).length) {
-          throw new Error("unmatched field count for row: " + index);
-        }
         ref = this.fields;
         for (j = 0, len = ref.length; j < len; j++) {
           field = ref[j];
-          if (row[field] === void 0) {
-            throw new Error("Row not found: " + field + " at " + index);
-          }
           this.__validateField(row[field], this.schema[field], field);
         }
         return true;
       };
 
       Schema.prototype.__validateField = function(unknown, schema, field) {
+        if (unknown === void 0) {
+          if (schema.required === true) {
+            throw new Error("undefined value for required field: " + field);
+          } else {
+            return true;
+          }
+        }
         if (schema.type === DataTypes.Number && $.type(unknown) === "number") {
           return true;
         }

@@ -55,6 +55,30 @@ try {
   console.log("Success 1.2: "+error.message)
 }
 
+// required fields are required:
+try {
+  d.setTable("fail13a", { id: { type: FEDB.Data.Number, required: true } }, [{}])
+  console.error("Fail 1.3.a")
+} catch(error) {
+  console.log("Success 1.3.a: "+error.message)
+}
+
+// not required fields are fine
+try {
+  d.setTable("fail13b", { id: { type: FEDB.Data.Number, required: false } }, [{}])
+  console.log("Success 1.3.b: not required fields are ignored")
+} catch(error) {
+  console.error("Fail 1.3.b: "+error.message)
+}
+
+// default is to be required
+try {
+  d.setTable("fail13c", { id: { type: FEDB.Data.Number } }, [{}])
+  console.error("Fail 1.3.c")
+} catch(error) {
+  console.log("Success 1.3.c: "+error.message)
+}
+
 // run some queries:
 
 d.getTable("test").query().execute().then(function(results){

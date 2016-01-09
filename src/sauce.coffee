@@ -67,10 +67,14 @@ window.FEDB = do ->
       for field, mixed of @schema
         if $.type(mixed) isnt "object"
           @schema[field] = { type: mixed }
-        else
-          # currently only support unique indexes, beware!
-          if mixed.unique is true
-            @indexes.push field
+
+      for field, properties of @schema
+        # currently only support unique indexes, beware!
+        if properties.unique is true
+          @indexes.push field
+
+        if properties.required isnt true and properties.required isnt false
+          properties.required = true
 
       @fields = Object.keys(@schema)
 
@@ -108,12 +112,7 @@ window.FEDB = do ->
 
     # validate a single object from the array
     __validateRow: (row, index)->
-      if @fields.length isnt Object.keys(row).length
-        throw new Error "unmatched field count for row: #{index}"
-
       for field in @fields
-        if row[field] is undefined
-          throw new Error "Row not found: #{field} at #{index}"
         @__validateField(row[field], @schema[field], field)
       return true
 
@@ -123,6 +122,13 @@ window.FEDB = do ->
     # @param: string field name
     # @return: boolean
     __validateField: (unknown, schema, field)->
+      # oh no! there is no data: if the field is required, complain, otherwise peace out
+      if unknown is undefined
+        if schema.required is true
+          throw new Error "undefined value for required field: #{field}"
+        else
+          return true
+
       if schema.type is DataTypes.Number and $.type(unknown) is "number"
         return true
 
