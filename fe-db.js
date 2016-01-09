@@ -159,7 +159,7 @@
           }
           return true;
         }
-        if (schema.type === DataTypes.Image && $.type(unknown) === "object") {
+        if (schema.type === DataTypes.Image && $.type(unknown) === "array") {
           return true;
         }
         throw new Error("invalid type in data: " + field + ": " + unknown);

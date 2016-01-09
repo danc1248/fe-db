@@ -143,7 +143,7 @@ window.FEDB = do ->
         return true
 
       # @TODO: this is modeled after airtable's attachments and I'm not exactly sure how its going to be used
-      if schema.type is DataTypes.Image and $.type(unknown) is "object"
+      if schema.type is DataTypes.Image and $.type(unknown) is "array"
         return true
 
       throw new Error "invalid type in data: #{field}: #{unknown}"
