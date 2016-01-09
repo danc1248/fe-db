@@ -1,6 +1,6 @@
 {
   "name": "fe-db",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "in memory databases",
   "main": "fe-db.js",
   "repository": {
