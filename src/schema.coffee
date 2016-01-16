@@ -84,15 +84,15 @@ class Schema
     return true
 
   # validate a single object from the array
-  __validateRow: (row, index)->
-    for field in @fields
-      @__validateField(row[field], @schema[field], field)
+  __validateRow: (row)->
+    for field, index in @fields
+      @__validateField(row[field], @schema[field], "#{index}.#{field}")
     return true
 
   # validate a field from the single object
   # @param: mixed variable that we are validating
   # @param: object representing this field's schema
-  # @param: string field name - only for debugging output
+  # @param: string field name - ONLY FOR DEBUGGING
   # @return: boolean
   __validateField: (unknown, schema, field)->
     # oh no! there is no data: if the field is required, complain, otherwise peace out
