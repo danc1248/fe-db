@@ -23,3 +23,9 @@ d.getTable("trees")
 .then (output)->
   console.log output  
 ```
+
+# Private functions:
+
+publicFunction
+_internalFunction - used outside a class, but internally to this app
+__privateFunction
