@@ -25,7 +25,7 @@ class Table
       if index[row[field]] is undefined
         index[row[field]] = i
       else
-        throw new Error "non unique index: #{field}"
+        throw new Error "non unique index: #{field}; value: #{row[field]}"
     return index
 
   # is this field indexed?
