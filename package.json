@@ -10,6 +10,12 @@
   "author": "danc1248",
   "license": "all rights reserved",
   "devDependencies": {
-    "grunt-jasmine-nodejs": "^1.4.3"
+    "grunt-jasmine-nodejs": "^1.4.3",
+    "coffeeify": "^2.0.1"
+  },
+  "browserify": {
+    "transform": [
+      "coffeeify"
+    ]
   }
 }
