@@ -38,9 +38,13 @@ class Table
   # @param: mixed value that we are searching on
   # @return row found by unique index
   getByIndex: (field, value)->
-    if @indexes[field] isnt undefined and @indexes[field][value] isnt undefined
-      i = @indexes[field][value]
-      return @data[i]
+    if @indexes[field] isnt undefined
+      if @indexes[field][value] isnt undefined
+        i = @indexes[field][value]
+        return @data[i]
+      else
+        # could be an error?
+        return null
     else
       throw new Error "getByIndex called on non-indexed field: #{field}, #{value}"
 
