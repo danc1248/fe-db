@@ -25,12 +25,15 @@ class Query
     return @setQueryOrdering(qo)
 
   # shorthand for setJoin
-  leftJoin: (field, database, tableName = null)->
+  # this table demonstrates the proper way to construct a join query using "IN"
+  leftJoin: (field, database, tableName = null, orderByField = null, order = null)->
     if @table._getSchema()._getType(field) is DataTypes.Table
       if tableName is null
         tableName = @table._getSchema()._getTableName(field)
       table = database.getTable(tableName)
-      q = table.query().where("id", "=")
+      q = table.query().where("id", "in")
+      if orderByField isnt null
+        q.orderBy(orderByField, order)
       return @setJoin(field, q)
     else
       throw new Error "Join only supported for DataType.Table: #{field}"
@@ -107,12 +110,21 @@ class Query
       # Note: the joinField is by definition of type DataTypes.Table and its value is an array of ids
       joinField = @join.field
       joinQuery = @join.query
-      results = results.map (row)=>
-        joinIds = row[joinField] # [foreignId, foreignId, ...]
-        row[joinField] = joinIds.map (id)=>
-          [results] = joinQuery.__execute(id) # assumes there is only one result
-          return results
-        return row
+      # for each row we expect an array of ids that need to be replaced with actual elements
+      for row in results      
+        joinIds = row[joinField] # [foreignId, foreignId, ...] to be replaced with rows
+
+        joinResults = joinQuery.__execute(joinIds)
+        # .map (id)=>
+        #   [results] = joinQuery.__execute(id) # assumes there is only one result
+        #   return results
+
+        # # a query ordering attached to the join would sort each individual row by ordering, thus not doing anything
+        # # what we assume the caller meant to do was order all the rows in the join, which we do here:
+        # if joinQuery.queryOrdering isnt null
+        #   joinResults = joinQuery.queryOrdering._sortResults(joinResults)
+
+        row[joinField] = joinResults
 
     ## 3. Order the results
     if @queryOrdering isnt null

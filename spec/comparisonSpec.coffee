@@ -19,4 +19,9 @@ describe __filename, ->
     it "should filter", -> expect(comparison._compare(sampleRow, 100)).toBe(true)
     it "should filter negative", -> expect(comparison._compare(sampleRow, 4)).toBe(false)
 
+  describe "in", ->
+    comparison = new Comparison("id", "in")
+    it "should return the thing", -> expect(comparison._compare(sampleRow, [1,4,6])).toBe(true)
+    it "should return the neg", ->   expect(comparison._compare(sampleRow, [1,6])).toBe(false)
+
   # I'm not going to write a test for each comparison function...

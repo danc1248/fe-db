@@ -17,6 +17,9 @@ class Comparison
         @operationFn = (a, b)-> return a <= b
       when ">="
         @operationFn = (a, b)-> return a >= b
+      # not super efficient:
+      when "IN", "in"
+        @operationFn = (a, b)-> return (b.indexOf(a) isnt -1)
       when "*"
         @operationFn = -> return true
       else
