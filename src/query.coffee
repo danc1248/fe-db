@@ -17,8 +17,10 @@ class Query
     @limitBy = null
 
   select: (@selectFields)->
+    return @
 
   limit: (@limitBy)->
+    return @
 
   # shorthand for setComparison
   where: (field, operator)->
