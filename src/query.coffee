@@ -13,6 +13,12 @@ class Query
     @comparison = null
     @queryOrdering = null
     @join = null # { field: String, query: Query }
+    @selectFields = null # [ array of field names to return ]
+    @limitBy = null
+
+  select: (@selectFields)->
+
+  limit: (@limitBy)->
 
   # shorthand for setComparison
   where: (field, operator)->
@@ -129,6 +135,9 @@ class Query
     ## 3. Order the results
     if @queryOrdering isnt null
       results = @queryOrdering._sortResults(results)
+
+    if @limitBy isnt null
+      results = results[0..@limitBy]
 
     return results
 
