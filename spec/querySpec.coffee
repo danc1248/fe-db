@@ -119,4 +119,7 @@ describe __filename, ->
       results = database.getTable("group").query().limit(2).__execute()
       expect(results.length).toBe(2)
 
+    it "should not return more than the number of results you have", ->
+      results = database.getTable("group").query().limit(10).__execute()
+      expect(results.length).toBe(3)
 

@@ -138,7 +138,7 @@ class Query
     if @queryOrdering isnt null
       results = @queryOrdering._sortResults(results)
 
-    if @limitBy isnt null
+    if @limitBy isnt null and results and results.length > @limitBy
       results = results[0..@limitBy-1]
 
     return results
