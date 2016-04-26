@@ -1,6 +1,6 @@
 {
   "name": "fe-db",
-  "version": "2.0.7",
+  "version": "2.0.8",
   "description": "in memory databases",
   "main": "src/main.coffee",
   "repository": {

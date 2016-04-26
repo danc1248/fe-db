@@ -100,7 +100,10 @@ class Query
       field = @comparison._getField()
       if @comparison._isSingleOperation() and @table._hasIndex(field)
         row = @table.getByIndex(field, value)
-        results = [row]
+        if row
+          results = [row]
+        else
+          results = []
 
       # otherwise we have to just lookup by hand, very slow
       else
