@@ -114,4 +114,9 @@ describe __filename, ->
         ]  
       }])
 
+  describe "limit", ->
+    it "should only return 2 results", ->
+      results = database.getTable("group").query().limit(2).__execute()
+      expect(results.length).toBe(2)
+
 

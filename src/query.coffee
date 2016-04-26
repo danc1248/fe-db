@@ -139,7 +139,7 @@ class Query
       results = @queryOrdering._sortResults(results)
 
     if @limitBy isnt null
-      results = results[0..@limitBy]
+      results = results[0..@limitBy-1]
 
     return results
 
