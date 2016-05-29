@@ -101,20 +101,22 @@ class Query
       if @comparison._isSingleOperation() and @table._hasIndex(field)
         row = @table.getByIndex(field, value)
         if row
-          results = [row]
+          raw = [row]
         else
-          results = []
+          raw = []
 
       # otherwise we have to just lookup by hand, very slow
       else
         # note: it is important that the data gets cloned in this filter function
-        results = @table._getData().filter (row)=>
+        raw = @table._getData().filter (row)=>
           return @comparison._compare(row, value)
 
     # no comparison? guess we're returning everything
-    # we clone the data here to make sure it doesn't get modified.
     else
-      results = JSON.parse(JSON.stringify(@table._getData()))
+      raw = @table._getData()
+
+    # we clone the data here to make sure it doesn't get modified.
+    results = JSON.parse(JSON.stringify(raw))
 
     ## 2. Join additional tables
     if @join isnt null
