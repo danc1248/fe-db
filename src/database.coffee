@@ -14,7 +14,7 @@ class Database
     @tables = {}
 
   setTable: (name, schemaObj, data = [])->
-    schema = new Schema(schemaObj)
+    schema = new Schema(schemaObj, name)
     @tables[name] = new Table(schema, data)
     return @
 

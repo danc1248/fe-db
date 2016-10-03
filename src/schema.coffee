@@ -26,7 +26,8 @@ class Schema
   # { id: { type: Number, ...other properties }, ... other fields}
   # or it could be simple: { id: Number } in which case we have to extend it
   # database, schemas can reference other tables, so we need to keep track of original calling database so we can grab those tables
-  constructor: (@schema = {})->
+  # @param tableName for debugging
+  constructor: (@schema = {}, @tableName = null)->
     @indexes = []
     # look for simple enteries and extend them:
     for field, mixed of @schema
@@ -57,7 +58,7 @@ class Schema
   _getType: (field)->
     obj = @schema[field]
     if obj is undefined
-      throw new Error "Unknown type: #{field} in #{util.inspect(obj, false, null)}"
+      throw new Error "Schema Error in table: #{@tableName}, Unknown type: #{field}, in #{util.inspect(obj, false, null)}"
     else
       return obj.type
 
@@ -65,7 +66,7 @@ class Schema
   _getTableName: (field)->
     obj = @schema[field]
     if obj is undefined or obj.tableName is undefined
-      throw new Error "Unknown table name: #{field} in #{util.inspect(obj, false, null)}"
+      throw new Error "Schema Error in table: #{@tableName}, Unknown table name: #{field} in #{util.inspect(obj, false, null)}"
     else
       return obj.tableName
 
@@ -98,7 +99,7 @@ class Schema
     # oh no! there is no data: if the field is required, complain, otherwise peace out
     if unknown is undefined
       if schema.required is true
-        throw new Error "undefined value for required field: #{field}"
+        throw new Error "Schema Error in table: #{@tableName}, undefined value for required field: #{field}"
       else
         return true
 
@@ -118,6 +119,6 @@ class Schema
     if schema.type is DataTypes.Image and unknownType is "[object Array]"
       return true
 
-    throw new Error "invalid type in data: #{field}: #{unknown}"
+    throw new Error "Schema Error in table: #{@tableName}, invalid type in data: #{field}: #{unknown}"
 
 module.exports = Schema
